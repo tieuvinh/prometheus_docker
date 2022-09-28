@@ -1,0 +1,74 @@
+version: "3.3"
+services:
+# prometheus
+  prometheus:
+    image: prom/prometheus:latest
+    volumes:
+      - $PWD/prometheus/rules:/etc/prometheus/rules
+      - $PWD/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+    command: --web.enable-lifecycle --config.file=/etc/prometheus/prometheus.yml  --storage.tsdb.retention.time 30d
+    ports:
+      - 9090:9090
+    links:
+      - blacbox_exporter
+
+# blackbox exporter
+  blacbox_exporter:
+    image: prom/blackbox-exporter
+    volumes:
+      - $PWD/blackbox.yml:/etc/blackbox_exporter/config.yml
+    command:
+      - --config.file=/etc/blackbox_exporter/config.yml
+    ports:
+      - 9115:9115
+
+# granfana
+  grafana:
+    image: grafana/grafana:latest
+    volumes:
+      - $PWD/grafana/grafana.ini:/etc/grafana/grafana.ini
+      - $PWD/grafana/datasource.yml:/etc/grafana/provisioning/datasources/datasource.yaml
+      - grafana-data/:/var/lib/grafana
+    ports:
+      - 3000:3000
+    links:
+      - prometheus
+      - prometheus-bot
+#alertmanager
+  alertmanager:
+    image: prom/alertmanager:latest
+    restart: unless-stopped
+    ports:
+      - "9093:9093"
+    volumes:
+      - $PWD/alertmanager:/config
+      - $PWD/alertmanager-data:/alermanager/data
+    command: --config.file=/config/alertmanager.yml --log.level=debug  
+#telegram prometheus bot 
+  prometheus-bot:
+    build: $PWD/prometheus_bot
+    volumes:
+      - $PWD/telegrambot/:/etc/telegrambot/
+      - $PWD/telegrambot/config.yaml:/config.yaml
+    ports:
+      - 9087:9087
+    restart: always
+
+# node exporter
+  node-exporter:
+    image: prom/node-exporter:latest
+    container_name: monitoring_node_exporter
+    restart: unless-stopped
+    expose:
+      - 9100
+
+# volumes
+volumes:
+  grafana-data:
+    driver: local
+    driver_opts:
+      type: none
+      device: $PWD/grafana-data
+      o: bind
+    # external: true
+  
